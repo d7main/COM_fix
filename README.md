@@ -3,10 +3,9 @@
 Professional driver and port recovery utility designed for hardware developers, embedded systems engineers, and IoT developers working with STM32, ESP32, and other MCU platforms. 
 
 This tool automates the process of diagnosing, unlocking, and repairing frozen or misbehaving virtual COM ports without requiring physical cable disconnection or system reboots.
+<img width="1095" height="673" alt="Snímek obrazovky 2026-06-03 130033" src="https://github.com/user-attachments/assets/df2fd1e2-0850-429f-a9c3-7f1faec05910" />
 
 > **⚠️ PRODUCTION DISCLAIMER (BETA RELEASE):** > This software is currently in its **Beta** development phase. It performs low-level operations within the Windows hardware configuration, process stack, and registry database. While designed with safety boundaries, unexpected behavior may occur depending on specific vendor driver implementations and system privileges. Use with caution.
-
-<img width="1095" height="673" alt="Snímek obrazovky 2026-06-03 130033" src="https://github.com/user-attachments/assets/df2fd1e2-0850-429f-a9c3-7f1faec05910" />
 
 
 ## Architecture & Core Modules
