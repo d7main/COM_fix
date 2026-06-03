@@ -205,7 +205,7 @@ namespace COM_fix
             groupBox3.Size = new Size(323, 181);
             groupBox3.TabIndex = 10;
             groupBox3.TabStop = false;
-            groupBox3.Text = "groupBox3";
+            groupBox3.Text = "Admin Control";
             // 
             // btnElevate_Click
             // 
