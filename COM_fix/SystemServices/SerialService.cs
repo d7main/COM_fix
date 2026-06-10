@@ -23,8 +23,14 @@ namespace COM_fix.SystemServices
         private SerialPort _serialPort;
         private bool _disposed;
 
-        /// <summary>Raised when data is received from the connected serial device.</summary>
+        /// <summary>Raised when data is received from the connected serial device and parsed as a string (Legacy support).</summary>
         public event EventHandler<string> OnDataReceived;
+
+        /// <summary>
+        /// Raised when raw binary data is received from the serial interface.
+        /// Provides structural flexibility for custom telemetry parsers and HEX visualization without data corruption.
+        /// </summary>
+        public event EventHandler<byte[]> OnRawDataReceived;
 
         /// <summary>Raised when a connection or communication error occurs.</summary>
         public event EventHandler<string> OnError;
@@ -51,14 +57,35 @@ namespace COM_fix.SystemServices
 
                 _serialPort = new SerialPort(portName, baudRate);
 
+                // Wire up the internal data receipt handler
                 _serialPort.DataReceived += (sender, e) =>
                 {
                     try
                     {
-                        string data = _serialPort.ReadExisting();
-                        if (!string.IsNullOrWhiteSpace(data))
+                        int bytesToRead = _serialPort.BytesToRead;
+                        if (bytesToRead > 0)
                         {
-                            OnDataReceived?.Invoke(this, data.TrimEnd());
+                            byte[] buffer = new byte[bytesToRead];
+                            int readBytes = _serialPort.Read(buffer, 0, bytesToRead);
+
+                            if (readBytes > 0)
+                            {
+                                // Array truncation if readBytes differs from buffer capacity
+                                if (readBytes < buffer.Length)
+                                {
+                                    Array.Resize(ref buffer, readBytes);
+                                }
+
+                                // 1. Trigger the new raw bytes pipeline
+                                OnRawDataReceived?.Invoke(this, buffer);
+
+                                // 2. Trigger the legacy string pipeline for backward compatibility
+                                string textData = System.Text.Encoding.UTF8.GetString(buffer).TrimEnd();
+                                if (!string.IsNullOrWhiteSpace(textData))
+                                {
+                                    OnDataReceived?.Invoke(this, textData);
+                                }
+                            }
                         }
                     }
                     catch (Exception ex)

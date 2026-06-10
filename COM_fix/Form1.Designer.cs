@@ -47,6 +47,8 @@ namespace COM_fix
             btnElevate_Click = new Button();
             lblDeviceInfor = new Label();
             listLog = new RichTextBox();
+            chkHexMode = new CheckBox();
+            chkPauseScroll = new CheckBox();
             statusStrip1.SuspendLayout();
             groupBox1.SuspendLayout();
             groupBox2.SuspendLayout();
@@ -233,18 +235,41 @@ namespace COM_fix
             listLog.BackColor = SystemColors.Window;
             listLog.BorderStyle = BorderStyle.None;
             listLog.Font = new Font("Consolas", 10.2F, FontStyle.Regular, GraphicsUnit.Point, 238);
-            listLog.Location = new Point(12, 290);
+            listLog.Location = new Point(12, 271);
             listLog.Name = "listLog";
             listLog.ReadOnly = true;
-            listLog.Size = new Size(810, 140);
+            listLog.Size = new Size(810, 159);
             listLog.TabIndex = 12;
             listLog.Text = "";
+            // 
+            // chkHexMode
+            // 
+            chkHexMode.AutoSize = true;
+            chkHexMode.Font = new Font("Segoe UI", 10F);
+            chkHexMode.Location = new Point(586, 84);
+            chkHexMode.Name = "chkHexMode";
+            chkHexMode.Size = new Size(93, 23);
+            chkHexMode.TabIndex = 13;
+            chkHexMode.Text = "HEX Mode";
+            chkHexMode.UseVisualStyleBackColor = true;
+            // 
+            // chkPauseScroll
+            // 
+            chkPauseScroll.AutoSize = true;
+            chkPauseScroll.Location = new Point(585, 108);
+            chkPauseScroll.Name = "chkPauseScroll";
+            chkPauseScroll.Size = new Size(100, 23);
+            chkPauseScroll.TabIndex = 14;
+            chkPauseScroll.Text = "Pause Scroll";
+            chkPauseScroll.UseVisualStyleBackColor = true;
             // 
             // Form1
             // 
             AutoScaleDimensions = new SizeF(7F, 17F);
             AutoScaleMode = AutoScaleMode.Font;
             ClientSize = new Size(834, 461);
+            Controls.Add(chkPauseScroll);
+            Controls.Add(chkHexMode);
             Controls.Add(listLog);
             Controls.Add(groupBox3);
             Controls.Add(groupBox2);
@@ -284,5 +309,7 @@ namespace COM_fix
         private Label lblDeviceInfor;
         private RichTextBox listLog;
         private Button btnElevate_Click;
+        private CheckBox chkHexMode;
+        private CheckBox chkPauseScroll;
     }
 }

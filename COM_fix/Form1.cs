@@ -50,8 +50,9 @@ namespace COM_fix
             _serialService = new SerialService();
 
             // Wire serial service events to the log
-            _serialService.OnDataReceived += (s, data) => AddToLog($"> {data}");
+            _serialService.OnRawDataReceived += SerialService_OnRawDataReceived;
             _serialService.OnError += (s, error) => AddToLog($"[WARN] {error}");
+
 
             // ── UI Setup ────────────────────────────────────────────────
             SetStatus("System Ready", false);
@@ -150,6 +151,11 @@ namespace COM_fix
                         AddToLog("[SUCCESS] Driver re-enumerated via restart. Target application should see the port now!");
                         SetStatus("Success: Device Ready!", false);
                         System.Media.SystemSounds.Asterisk.Play();
+
+                        // ── UX AUTOMATION: Auto rescan after repair to reflect changes without user intervention
+                        AddToLog("[INFO] Post-repair hardware cycle completed. Triggering auto-rescan in 1.5s...");
+                        await Task.Delay(1500);
+                        btnScan.PerformClick(); // Programmatically simulate a click on the scan button
                     }
                     else
                     {
@@ -197,6 +203,17 @@ namespace COM_fix
             }
 
             string selectedPort = cmbPorts.SelectedItem.ToString();
+
+            // ── UX GUARD: Prevent connection attempts to invalid targets (e.g., STM32 DFU, No COM, empty selection)
+            if (selectedPort.Contains("BOOT") || selectedPort.Contains("No COM") || string.IsNullOrEmpty(selectedPort))
+            {
+                AddToLog("[WARN] Cannot connect: Device is in Bootloader mode (clean chip) or driver is missing.");
+                MessageBox.Show("This is a virtual boot identifier, not a valid COM port.\n\n" +
+                                "If the chip is completely clean, flash it first via your firmware IDE.\n" +
+                                "If the driver is stuck, click 'FIX' or 'Restart Device' and perform a Re-scan.",
+                                "Invalid Serial Port Target", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
             if (!int.TryParse(cmbBaudRate.Text, out int baudRate))
             {
                 AddToLog("[WARN] Invalid Baud Rate format.");
@@ -264,6 +281,13 @@ namespace COM_fix
             {
                 string result = await _driverService.ForceRestartDeviceAsync(device.HardwareID);
                 AddToLog($"[INFO] {result}");
+
+                // ── UX AUTOMATION: Conditional auto-rescan after successful device restart ──
+                if (result.StartsWith("Success"))
+                {
+                    await Task.Delay(1200);
+                    btnScan.PerformClick();
+                }
             }
             catch (Exception ex)
             {
@@ -382,6 +406,61 @@ namespace COM_fix
             btnRestartDevice.Enabled = enabled;
             btnCleanComMap.Enabled = enabled;
         }
+
+        /// <summary>
+        /// Handles asynchronous raw serial data reception, applying HEX translation and scroll-lock filters.
+        /// </summary>
+        /// <param name="sender">The source of the event, typically the <see cref="SerialService"/>.</param>
+        /// <param name="rawData">The raw byte array received from the serial interface.</param>
+        private void SerialService_OnRawDataReceived(object sender, byte[] rawData)
+        {
+            if (rawData == null || rawData.Length == 0) return;
+
+            // 1. Scroll-lock filter: skip UI rendering if the log stream is paused.
+            // The background service continues reading data to prevent OS buffer overflow.
+            if (chkPauseScroll.Checked) return;
+
+            string formattedMessage;
+
+            // 2. Apply formatting strategy based on current UI display mode
+            if (chkHexMode.Checked)
+            {
+                formattedMessage = ConvertToHexView(rawData);
+            }
+            else
+            {
+                // Standard textual representation (UTF-8) with trailing newline stripping
+                formattedMessage = System.Text.Encoding.UTF8.GetString(rawData).TrimEnd('\r', '\n');
+            }
+
+            if (!string.IsNullOrWhiteSpace(formattedMessage))
+            {
+                AddToLog($"> {formattedMessage}");
+            }
+        }
+
+        /// <summary>
+        /// Converts a raw byte array into a clean, space-separated hexadecimal string view.
+        /// </summary>
+        /// <remarks>
+        /// Performance optimized using <see cref="System.Text.StringBuilder"/> with pre-allocated memory 
+        /// to minimize garbage collection overhead during high-baudrate data storming.
+        /// </remarks>
+        /// <param name="data">The raw byte array to be converted.</param>
+        /// <returns>A formatted uppercase hexadecimal string (e.g., "A1 B2 C3").</returns>
+        private string ConvertToHexView(byte[] data)
+        {
+            // Pre-allocate buffer capacity (3 characters per byte: 2 hex digits + 1 space)
+            System.Text.StringBuilder hexBuilder = new System.Text.StringBuilder(data.Length * 3);
+
+            foreach (byte b in data)
+            {
+                hexBuilder.AppendFormat("{0:X2} ", b);
+            }
+
+            return hexBuilder.ToString().TrimEnd();
+        }
+
 
         /// <summary>
         /// Appends a color-coded, timestamped message to the log RichTextBox.
