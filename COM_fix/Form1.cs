@@ -428,25 +428,45 @@ namespace COM_fix
         /// Auto-selects STM32 DFU or ESP targets if detected.
         /// </summary>
         /// <param name="devices">The list of discovered serial devices.</param>
+        /// <summary>
+        /// Updates the port ComboBox with scanned device results.
+        /// Auto-selects STM32 DFU or ESP targets if detected.
+        /// </summary>
+        /// <param name="devices">The list of discovered serial devices.</param>
         private void UpdatePortComboBox(List<SerialDeviceInfo> devices)
         {
             cmbPorts.Items.Clear();
             int targetIndex = -1;
+            bool isStm32Dfu = false;
+            bool isEspDevice = false;
+
             foreach (var device in devices)
             {
                 int idx = cmbPorts.Items.Add(device.PortName);
-                if (device.HardwareID.Contains(HardwareConstants.VID_STM32_DFU) ||
-                    device.HardwareID.Contains(HardwareConstants.VID_ESP_PREFIX))
+
+                if (device.HardwareID.Contains(HardwareConstants.VID_STM32_DFU))
                 {
                     targetIndex = idx;
+                    isStm32Dfu = true;
+                }
+                else if (device.HardwareID.Contains(HardwareConstants.VID_ESP_PREFIX))
+                {
+                    targetIndex = idx;
+                    isEspDevice = true;
                 }
             }
+
             if (cmbPorts.Items.Count > 0) cmbPorts.SelectedIndex = targetIndex != -1 ? targetIndex : 0;
 
-            if (targetIndex != -1)
+            if (isStm32Dfu)
             {
                 btnFix.BackColor = Color.Orange;
                 AddToLog("[WARN] STM32 DFU FOUND! Click FIX to repair drivers.");
+            }
+            else if (isEspDevice)
+            {
+                btnFix.BackColor = SystemColors.Control;
+                AddToLog("[INFO] Espressif Native USB device selected and ready.");
             }
             else
             {

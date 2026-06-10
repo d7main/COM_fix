@@ -27,11 +27,14 @@ namespace COM_fix.Models
         /// <summary>STMicroelectronics vendor prefix.</summary>
         public const string VID_STM32_PREFIX = "VID_0483";
 
-        // ── ESP32 / Espressif Family ────────────────────────────────────
+        // ── Espressif Family ────────────────────────────────────────────
         /// <summary>Silicon Labs CP2102 — common ESP32 / NodeMCU USB-UART bridge.</summary>
         public const string VID_ESP32_CP2102 = "VID_10C4&PID_EA60";
 
-        /// <summary>Espressif vendor prefix (native USB on ESP32-S2/S3).</summary>
+        /// <summary>Espressif ESP32-C3 Super Mini native USB CDC/JTAG stub.</summary>
+        public const string VID_ESP32C3_SUPER_MINI = "VID_303A&PID_1001";
+
+        /// <summary>Espressif Systems vendor prefix (native USB on ESP32-S2/S3/C3/C6 series).</summary>
         public const string VID_ESP_PREFIX = "VID_303A";
 
         // ── Common USB-to-Serial Chips ──────────────────────────────────
@@ -59,14 +62,19 @@ namespace COM_fix.Models
 
             string id = pnpId.ToUpper();
 
-            if (id.Contains(VID_CH340))       return "CH340 (Arduino Clone / ESP8266)";
+            // 1. Precise Matching (Full VID & PID Checks)
+            if (id.Contains(VID_CH340)) return "CH340 (Arduino Clone / ESP8266)";
             if (id.Contains(VID_ESP32_CP2102)) return "CP2102 (ESP32 / NodeMCU)";
-            if (id.Contains(VID_FTDI))        return "FTDI FT232R";
-            if (id.Contains(VID_ARDUINO))     return "Original Arduino (Uno/Mega)";
-            if (id.Contains(VID_STM32_VCP))   return "STM32 VCP (Flight Controller)";
-            if (id.Contains(VID_STM32_DFU))   return "STM32 DFU Bootloader";
-            if (id.Contains(VID_RPI_PICO))    return "Raspberry Pi Pico (RP2040)";
-            if (id.Contains(VID_ESP_PREFIX))   return "Espressif Native USB (ESP32-S2/S3)";
+            if (id.Contains(VID_FTDI)) return "FTDI FT232R";
+            if (id.Contains(VID_ARDUINO)) return "Original Arduino (Uno/Mega)";
+            if (id.Contains(VID_STM32_VCP)) return "STM32 VCP (Flight Controller)";
+            if (id.Contains(VID_STM32_DFU)) return "STM32 DFU Bootloader";
+            if (id.Contains(VID_RPI_PICO)) return "Raspberry Pi Pico (RP2040)";
+            if (id.Contains(VID_ESP32C3_SUPER_MINI)) return "ESP32-C3 Super Mini";
+
+            // 2. Fallback Vendor Prefix Matching (Broad Checks)
+            if (id.Contains(VID_STM32_PREFIX)) return "Generic STM32/ARM Device";
+            if (id.Contains(VID_ESP_PREFIX)) return "Espressif Native USB Device";
 
             return "Generic USB/Serial Device";
         }

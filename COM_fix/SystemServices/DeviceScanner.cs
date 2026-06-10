@@ -79,6 +79,15 @@ namespace COM_fix.SystemServices
         /// <param name="obj">The WMI management object to process.</param>
         /// <param name="devices">The accumulating list of discovered devices.</param>
         /// <param name="seenPorts">Set of already-seen port names to prevent duplicates.</param>
+
+        /**
+         * The method attempts to extract the COM port name from the device's caption using a regex pattern.
+         * If a COM port is found and hasn't been seen before, it adds a new SerialDeviceInfo to the list.
+         * It also handles special cases like STM32 DFU bootloader devices that may not have a COM port assigned.
+         */
+
+        /// <summary> OLD VERSION: The method attempts to extract the COM port name from the device's caption using a regex pattern.
+        /*
         private void ProcessWmiDevice(ManagementBaseObject obj, List<SerialDeviceInfo> devices, HashSet<string> seenPorts)
         {
             string caption = obj["Caption"]?.ToString() ?? "";
@@ -124,6 +133,81 @@ namespace COM_fix.SystemServices
                 }
             }
         }
+        */
+
+        private void ProcessWmiDevice(ManagementBaseObject obj, List<SerialDeviceInfo> devices, HashSet<string> seenPorts)
+        {
+            string caption = obj["Caption"]?.ToString() ?? "";
+            string deviceId = obj["PNPDeviceID"]?.ToString() ?? "";
+            string description = obj["Description"]?.ToString() ?? "";
+
+            if (string.IsNullOrEmpty(caption) && string.IsNullOrEmpty(description)) return;
+
+            string hwIdUpper = deviceId.ToUpper();
+
+            // Identify the chipset using centralized hardware constants
+            string chipType = HardwareConstants.IdentifyChip(deviceId);
+
+            // Attempt to extract COMx port name from the caption (e.g., "USB Serial Device (COM3)")
+            System.Text.RegularExpressions.Match match =
+                System.Text.RegularExpressions.Regex.Match(caption, @"\((COM\d+)\)");
+
+            if (match.Success)
+            {
+                string portName = match.Groups[1].Value.ToUpper();
+                if (!seenPorts.Contains(portName))
+                {
+                    devices.Add(new SerialDeviceInfo
+                    {
+                        PortName = portName,
+                        Description = string.IsNullOrEmpty(description) ? chipType : description,
+                        HardwareID = deviceId,
+                        IsBusy = CheckIfPortIsBusy(portName)
+                    });
+                    seenPorts.Add(portName);
+
+                    // Prevent redundant multi-interface enumeration for the same Espressif composite device
+                    if (hwIdUpper.Contains(HardwareConstants.VID_ESP_PREFIX))
+                    {
+                        seenPorts.Add("ESP_ALREADY_FOUND_AS_COM");
+                    }
+                }
+            }
+            // Catch STM32 DFU bootloader mode (no native virtual COM port exposed)
+            else if (hwIdUpper.Contains(HardwareConstants.VID_STM32_DFU))
+            {
+                if (!seenPorts.Contains("STM32_DFU"))
+                {
+                    devices.Add(new SerialDeviceInfo
+                    {
+                        PortName = "DFU",
+                        Description = "STM32 BOOTLOADER",
+                        HardwareID = deviceId,
+                        IsBusy = false
+                    });
+                    seenPorts.Add("STM32_DFU");
+                }
+            }
+            // Catch Espressif devices without an assigned COM port (e.g., raw JTAG interface or missing drivers)
+            else if (hwIdUpper.Contains(HardwareConstants.VID_ESP_PREFIX))
+            {
+                // Skip parent composite device nodes, only capture unmapped fallback endpoints
+                if (!seenPorts.Contains("ESP_ALREADY_FOUND_AS_COM") &&
+                    !seenPorts.Contains("ESP_BOOT") &&
+                    !caption.Contains("Složené") &&
+                    !caption.Contains("Composite"))
+                {
+                    devices.Add(new SerialDeviceInfo
+                    {
+                        PortName = "ESP_BOOT",
+                        Description = "ESP32 Native USB (No COM Port / Driver Issue)",
+                        HardwareID = deviceId,
+                        IsBusy = false
+                    });
+                    seenPorts.Add("ESP_BOOT");
+                }
+            }
+        }
 
         /// <summary>
         /// Checks whether a serial port is currently locked by another process
@@ -133,7 +217,8 @@ namespace COM_fix.SystemServices
         /// <returns><c>true</c> if the port is busy or inaccessible; otherwise <c>false</c>.</returns>
         private bool CheckIfPortIsBusy(string portName)
         {
-            if (portName == "DFU") return false;
+            if (portName == "DFU" || portName == "ESP_BOOT") return false;
+
             try
             {
                 using (var tempPort = new System.IO.Ports.SerialPort(portName))
