@@ -8,12 +8,26 @@
  * HardwareConstants.cs: Centralized hardware identifiers and chip identification logic.
  */
 
-namespace COM_fix.Models
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Text.Json;
+
+namespace COM_fix
 {
     /// <summary>
+    /// Data model representing a hardware device definition for JSON serialization.
+    /// Kept within this file to maintain a flat architecture without forcing extra folders.
+    /// </summary>
+    public class HardwareDefinition
+    {
+        public string HardwareIDIdentifier { get; set; }
+        public string ChipFamily { get; set; }
+    }
+
+    /// <summary>
     /// Provides centralized constants for USB Vendor/Product IDs and chip identification.
-    /// All hardcoded VID/PID strings used throughout the application are defined here
-    /// to ensure consistency and easy maintenance.
+    /// Supports dynamic expansion via an external 'devices.json' file with a hardcoded safety backup.
     /// </summary>
     public static class HardwareConstants
     {
@@ -50,6 +64,60 @@ namespace COM_fix.Models
         /// <summary>Raspberry Pi Pico (RP2040 native USB).</summary>
         public const string VID_RPI_PICO = "VID_2E8A&PID_0005";
 
+        // ── Open-Source Dynamic Engine ──────────────────────────────────
+        private static List<HardwareDefinition> _dynamicDefinitions = new List<HardwareDefinition>();
+        private static readonly string ConfigPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "devices.json");
+
+        /// <summary>
+        /// Shared static constructor. Automatically triggers hardware database initialization on first reference.
+        /// </summary>
+        static HardwareConstants()
+        {
+            LoadDefinitions();
+        }
+
+        /// <summary>
+        /// Reads the external 'devices.json' configuration file. If the file is missing or corrupted,
+        /// it populates the engine with standard hardcoded defaults and automatically regenerates the file.
+        /// </summary>
+        public static void LoadDefinitions()
+        {
+            try
+            {
+                if (File.Exists(ConfigPath))
+                {
+                    string jsonContent = File.ReadAllText(ConfigPath);
+                    _dynamicDefinitions = JsonSerializer.Deserialize<List<HardwareDefinition>>(jsonContent)
+                                           ?? new List<HardwareDefinition>();
+                }
+                else
+                {
+                    // Configuration file missing: fall back to default database and deploy the file
+                    PopulateDefaults();
+                    SaveDefinitions();
+                }
+            }
+            catch
+            {
+                // Fault-protection: if a user breaks the JSON syntax manually, fall back to embedded defaults
+                PopulateDefaults();
+            }
+        }
+
+        /// <summary>
+        /// Serializes and saves the current hardware database back to the external JSON configuration file.
+        /// </summary>
+        public static void SaveDefinitions()
+        {
+            try
+            {
+                var options = new JsonSerializerOptions { WriteIndented = true };
+                string json = JsonSerializer.Serialize(_dynamicDefinitions, options);
+                File.WriteAllText(ConfigPath, json);
+            }
+            catch { /* Fail-silent: Ignore filesystem access errors (e.g., running without write permissions) */ }
+        }
+
         /// <summary>
         /// Identifies the chipset/manufacturer of a USB device based on its PnP Device ID.
         /// Returns a human-readable description of the chip for enhanced logging.
@@ -62,21 +130,38 @@ namespace COM_fix.Models
 
             string id = pnpId.ToUpper();
 
-            // 1. Precise Matching (Full VID & PID Checks)
-            if (id.Contains(VID_CH340)) return "CH340 (Arduino Clone / ESP8266)";
-            if (id.Contains(VID_ESP32_CP2102)) return "CP2102 (ESP32 / NodeMCU)";
-            if (id.Contains(VID_FTDI)) return "FTDI FT232R";
-            if (id.Contains(VID_ARDUINO)) return "Original Arduino (Uno/Mega)";
-            if (id.Contains(VID_STM32_VCP)) return "STM32 VCP (Flight Controller)";
-            if (id.Contains(VID_STM32_DFU)) return "STM32 DFU Bootloader";
-            if (id.Contains(VID_RPI_PICO)) return "Raspberry Pi Pico (RP2040)";
-            if (id.Contains(VID_ESP32C3_SUPER_MINI)) return "ESP32-C3 Super Mini";
+            // 1. Dynamic Match Pool (Scan against extensible database loaded from the JSON config)
+            foreach (var definition in _dynamicDefinitions)
+            {
+                if (id.Contains(definition.HardwareIDIdentifier.ToUpper()))
+                {
+                    return definition.ChipFamily;
+                }
+            }
 
-            // 2. Fallback Vendor Prefix Matching (Broad Checks)
+            // 2. Fallback Vendor Prefix Matching (Broad vendor sweeps if no specific definition matches)
             if (id.Contains(VID_STM32_PREFIX)) return "Generic STM32/ARM Device";
             if (id.Contains(VID_ESP_PREFIX)) return "Espressif Native USB Device";
 
             return "Generic USB/Serial Device";
+        }
+
+        /// <summary>
+        /// Populates the internal list with standard hardware defaults when no external configuration is present.
+        /// </summary>
+        private static void PopulateDefaults()
+        {
+            _dynamicDefinitions = new List<HardwareDefinition>
+            {
+                new HardwareDefinition { HardwareIDIdentifier = VID_CH340, ChipFamily = "CH340 (Arduino Clone / ESP8266)" },
+                new HardwareDefinition { HardwareIDIdentifier = VID_ESP32_CP2102, ChipFamily = "CP2102 (ESP32 / NodeMCU)" },
+                new HardwareDefinition { HardwareIDIdentifier = VID_FTDI, ChipFamily = "FTDI FT232R" },
+                new HardwareDefinition { HardwareIDIdentifier = VID_ARDUINO, ChipFamily = "Original Arduino (Uno/Mega)" },
+                new HardwareDefinition { HardwareIDIdentifier = VID_STM32_VCP, ChipFamily = "STM32 VCP (Flight Controller)" },
+                new HardwareDefinition { HardwareIDIdentifier = VID_STM32_DFU, ChipFamily = "STM32 DFU Bootloader" },
+                new HardwareDefinition { HardwareIDIdentifier = VID_RPI_PICO, ChipFamily = "Raspberry Pi Pico (RP2040)" },
+                new HardwareDefinition { HardwareIDIdentifier = VID_ESP32C3_SUPER_MINI, ChipFamily = "ESP32-C3 Super Mini" }
+            };
         }
     }
 }
